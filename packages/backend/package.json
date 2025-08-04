@@ -1,0 +1,26 @@
+{
+  "name": "@chatbot-builder/backend",
+  "version": "1.0.0",
+  "description": "Backend for AI-Driven Chatbot Builder",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "nodemon src/index.ts",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.1.0",
+    "@types/pg": "^8.15.5",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "chromadb": "^3.0.10",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "openai": "^5.11.0",
+    "pg": "^8.16.3"
+  }
+}
