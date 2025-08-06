@@ -1,5 +1,5 @@
 import { NextFunction, Response } from "express";
-import jwt from 'jsonwebtoken';
+import { verifyToken } from "../utils/token";
 
 export function protect(req: any, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
@@ -9,7 +9,7 @@ export function protect(req: any, res: Response, next: NextFunction) {
 
   const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: number; email: string };
+    const decoded = verifyToken(token) as { id: number; email: string };
     req.user = decoded;
     next();
   } catch (error) {

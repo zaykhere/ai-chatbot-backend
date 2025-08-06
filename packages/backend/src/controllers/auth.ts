@@ -1,9 +1,9 @@
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
-import { Request, Response } from 'express';
-import { users } from "../db/schema";
 import { eq } from 'drizzle-orm';
+import { Request, Response } from 'express';
+import { generateToken } from '../utils/token';
 import { getDb } from '../db';
+import { users } from "../db/schema";
 import { sendError, sendSuccess } from '../utils/response';
 
 const db = getDb();
@@ -23,10 +23,8 @@ export async function register(req: Request, res: Response) {
     .insert(users)
     .values({ email, password: hashedPassword })
     .returning();
-  const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET!, {
-    expiresIn: '7d',
-  });
-  sendSuccess(res, {token}, 200);
+  const token = generateToken({ id: user.id, email: user.email })
+  sendSuccess(res, { token }, 200);
 
 }
 
@@ -38,11 +36,9 @@ export async function login(req: Request, res: Response) {
     .from(users)
     .where(eq(users.email, email));
   if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).json({ error: 'Invalid credentials' });
+    sendError(res, "Invalid credentials", 400);
   }
-  const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET!, {
-    expiresIn: '7d',
-  });
-  sendSuccess(res, {token}, 200);
+  const token = generateToken({ id: user.id, email: user.email })
+  sendSuccess(res, { token }, 200);
 
 }
