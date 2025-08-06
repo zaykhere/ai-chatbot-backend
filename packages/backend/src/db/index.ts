@@ -9,7 +9,7 @@ let dbInstance: ReturnType<typeof drizzle> | null = null;
 
 export function getDb() {
   if (!dbInstance) {
-    const sql = neon(process.env.DATABASE_URL!);
+    const sql = neon(process.env.DEV_DB!);
     dbInstance = drizzle(sql, { schema });
   }
   return dbInstance;
