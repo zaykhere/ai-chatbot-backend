@@ -66,8 +66,6 @@ function splitTextIntoChunks(text: string, chunkSize: number = 512, chunkOverlap
 }
 
 export async function uploadDocument(req: any, res: Response) {
-  // console.log(JSON.stringify(req));
-  console.log({req});
   const { chatbotId } = req.params;
   const userId = req.user?.id;
   const file = req.file;
@@ -126,7 +124,7 @@ export async function uploadDocument(req: any, res: Response) {
       metadatas: embeddings.map(() => ({ userId, chatbotId })),
     });
 
-    sendSuccess(res, {message: "Document processed and embeddings stored"}, 200)
+    sendSuccess(res, { message: "Document processed and embeddings stored" }, 200)
   } catch (error: any) {
     console.error(error);
     if (error.message === 'Only PDF files are allowed') {
@@ -190,6 +188,123 @@ export async function queryChatbot(req: any, res: Response) {
     response: completion.choices[0].message.content,
     context
   }, 200)
+}
+
+export async function updateDocument(req: any, res: Response) {
+  const { chatbotId } = req.params;
+  const userId = req.user?.id;
+  const file = req.file;
+
+  if (!file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+
+  try {
+    // Verify chatbot ownership
+    const [chatbot] = await db
+      .select()
+      .from(chatbots)
+      .where(
+        and(
+          eq(chatbots.id, parseInt(chatbotId, 10)),
+          eq(chatbots.userId, userId!)
+        )
+      ).limit(1);
+    if (!chatbot) {
+      sendError(res, "Chatbot not found", 404);
+    }
+
+    // Delete existing ChromaDB collection
+    try {
+      await chromaClient.deleteCollection({ name: `chatbot_${chatbotId}` });
+    } catch (error) {
+      // Ignore if collection doesn't exist
+      console.warn(`Collection chatbot_${chatbotId} not found, proceeding with new collection`);
+    }
+
+    // Extract text from PDF
+    const pdfData = await pdfParse(file.buffer);
+    const content = pdfData.text;
+
+    // Split text into chunks with overlap
+    const chunks = splitTextIntoChunks(content, 500, 100);
+
+    // Generate embeddings for each chunk
+    const embeddings = await Promise.all(
+      chunks.map(async (chunk, index) => {
+        const embeddingResponse = await openai.embeddings.create({
+          model: 'text-embedding-ada-002',
+          input: chunk,
+        });
+        return {
+          id: `${file.originalname}-${index}`,
+          embedding: embeddingResponse.data[0].embedding,
+          content: chunk,
+        };
+      })
+    );
+
+    // Store in new ChromaDB collection
+    const collection = await chromaClient.getOrCreateCollection({
+      name: `chatbot_${chatbotId}`,
+      embeddingFunction: new NoOpEmbeddingFunction(),
+    });
+    await collection.add({
+      ids: embeddings.map((e) => e.id),
+      documents: embeddings.map((e) => e.content),
+      embeddings: embeddings.map((e) => e.embedding),
+      metadatas: embeddings.map(() => ({ userId, chatbotId })),
+    });
+
+    res.json({ message: 'Document updated and new embeddings stored' });
+  } catch (error: any) {
+    console.error(error);
+    if (error.message === 'Only PDF files are allowed') {
+      return res.status(400).json({ error: 'Only PDF files are allowed' });
+    }
+    if (error.message.includes('File too large')) {
+      return res.status(400).json({ error: 'File size exceeds 5MB limit' });
+    }
+    res.status(500).json({ error: 'Failed to update document' });
+  }
+}
+
+export async function getAllChatbots(req: any, res: Response) {
+  const userId = req.user?.id;
+
+  const chatbotData = await db.select().from(chatbots).where(eq(chatbots.userId, userId));
+
+  sendSuccess(res, { chatbots: chatbotData }, 200);
+}
+
+export async function deleteChatbot(req: any, res: Response) {
+  const { chatbotId } = req.params;
+  const userId = req.user?.id;
+
+  const [chatbot] = await db
+    .select()
+    .from(chatbots)
+    .where(
+      and(
+        eq(chatbots.id, parseInt(chatbotId)),
+        eq(chatbots.userId, userId!)
+      ));
+
+  if (!chatbot) {
+    sendError(res, "Chatbot not found", 404);
+  }
+
+
+  await db.delete(chatbots).where(eq(chatbots.id, parseInt(chatbotId)));
+
+  try {
+    await chromaClient.deleteCollection({ name: `chatbot_${chatbotId}` });
+  } catch (error) {
+    console.warn(`Collection chatbot_${chatbotId} not found, proceeding with deletion`);
+  }
+
+  sendSuccess(res, null, 204);
+
 }
 
 // Multer middleware for file upload
