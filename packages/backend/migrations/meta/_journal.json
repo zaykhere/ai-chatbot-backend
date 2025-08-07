@@ -15,6 +15,20 @@
       "when": 1754485456232,
       "tag": "0001_tiny_klaw",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1754559790371,
+      "tag": "0002_simple_mordo",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1754560025400,
+      "tag": "0003_free_thundra",
+      "breakpoints": true
     }
   ]
 }

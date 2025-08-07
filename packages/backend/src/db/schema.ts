@@ -13,4 +13,11 @@ export const chatbots = pgTable('chatbots', {
   userId: integer('user_id').notNull().references(() => users.id),
   name: varchar('name', { length: 255 }).notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  apiKey: text('api_key').unique(), // Optional, only set when widget is enabled
+});
+
+export const chatbotDomains = pgTable('chatbot_domains', {
+  id: serial('id').primaryKey(),
+  chatbotId: integer('chatbot_id').notNull().references(() => chatbots.id),
+  domain: text('domain').notNull(),
 });
