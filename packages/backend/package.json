@@ -18,7 +18,9 @@
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
+    "@types/multer": "^2.0.0",
     "@types/node": "^24.1.0",
+    "@types/pdf-parse": "^1.1.5",
     "@types/pg": "^8.15.5",
     "drizzle-kit": "^0.31.4",
     "nodemon": "^3.1.10",
@@ -28,6 +30,7 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
+    "@chroma-core/default-embed": "^0.1.8",
     "@neondatabase/serverless": "^1.0.1",
     "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
@@ -39,7 +42,9 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.1",
-    "openai": "^5.11.0",
+    "multer": "^2.0.2",
+    "openai": "^5.12.0",
+    "pdf-parse": "^1.1.1",
     "pg": "^8.16.3",
     "winston": "^3.17.0",
     "zod": "^4.0.15",
