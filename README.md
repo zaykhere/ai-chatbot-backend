@@ -34,43 +34,19 @@ A powerful backend service that enables users to create intelligent chatbots by 
 
 ```
 
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-
-│ PDF Upload │ │ Text Chunks │ │ Embeddings │
-
-│ │───▶│ │───▶│ │
-
-│ (Multer) │ │ (Processing) │ │ (OpenAI) │
-
-└─────────────────┘ └─────────────────┘ └─────────────────┘
-
-│
-
-▼
-
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-
-│ User Query │ │ Vector Search │ │ ChromaDB │
-
-│ │───▶│ │───▶│ │
-
-│ (Express API) │ │ (Similarity) │ │ (Vector Store) │
-
-└─────────────────┘ └─────────────────┘ └─────────────────┘
-
-│
-
-▼
-
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-
-│ AI Response │ │ Context + │ │ Retrieved │
-
-│ │◀───│ User Query │◀───│ Documents │
-
-│ (OpenAI) │ │ │ │ │
-
-└─────────────────┘ └─────────────────┘ └─────────────────┘
+PDF Upload ──► Text Processing ──► OpenAI Embeddings ──► ChromaDB Storage
+   │                                                           │
+   │                                                           │
+   └─────────────────── RAG Pipeline ────────────────────────┘
+                                │
+                                ▼
+User Query ──► Query Embedding ──► Vector Search ──► Context Retrieval
+   │                                                       │
+   │                                                       ▼
+   └────────────► OpenAI API ◄─── Context + Query ◄───────┘
+                     │
+                     ▼
+                AI Response
 
 ```
 
