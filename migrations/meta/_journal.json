@@ -29,6 +29,13 @@
       "when": 1754560025400,
       "tag": "0003_free_thundra",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1755518388531,
+      "tag": "0004_cynical_shriek",
+      "breakpoints": true
     }
   ]
 }
