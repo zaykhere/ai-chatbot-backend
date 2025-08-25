@@ -11,7 +11,9 @@ const db = getDb();
 export async function register(req: Request, res: Response) {
   const { name, email, password } = req.body;
 
-  const userExists = await db.select().from(users).where(eq(users.email, email));
+  const [userExists] = await db.select().from(users).where(eq(users.email, email));
+
+  console.log({userExists});
 
   if (userExists) {
     sendError(res, "User already exists", 400);

@@ -187,7 +187,8 @@ export async function queryChatbot(req: any, res: Response) {
 
   sendSuccess(res, {
     response: completion.choices[0].message.content,
-    context
+    context,
+    timestamp: new Date()
   }, 200)
 }
 
