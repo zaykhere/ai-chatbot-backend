@@ -1,11 +1,11 @@
-import { chatbotDomains, chatbots } from "../db/schema";
+import { chatbotDomains, chatbots, chatMessages, chatSessions } from "../db/schema";
 import { Response } from "express";
 import { getDb } from "../db";
 import { sendError, sendSuccess } from "../utils/response";
 import multer from 'multer';
 import OpenAI from 'openai';
 import { ChromaClient, EmbeddingFunction } from 'chromadb';
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import pdfParse from 'pdf-parse';
 import crypto from 'crypto';
 
@@ -26,7 +26,9 @@ const upload = multer({
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-const chromaClient = new ChromaClient({ path: 'http://localhost:8000' });
+console.log(process.env.CHROMA_DB);
+
+const chromaClient = new ChromaClient({ path: process.env.CHROMA_DB });
 
 // Custom embedding function to bypass default embedding
 class NoOpEmbeddingFunction implements EmbeddingFunction {
@@ -141,55 +143,125 @@ export async function uploadDocument(req: any, res: Response) {
 }
 
 export async function queryChatbot(req: any, res: Response) {
-  const { chatbotId } = req.params;
-  const { query } = req.body;
-  const userId = req.user?.id;
+  try {
+    const db = getDb();
+    const { chatbotId } = req.params;
+    const { query } = req.body;
+    const userId = req.user?.id;
+    const { sessionId } = req.query;
 
-  // Verify chatbot ownership
+    if (!query || !chatbotId) {
+      return sendError(res, "Missing query or chatbotId", 400);
+    }
 
-  const [chatbot] = await db
-    .select()
-    .from(chatbots)
-    .where(
-      and(
-        eq(chatbots.id, parseInt(chatbotId)),
-        eq(chatbots.userId, userId!)
-      ));
+    // 1. Verify chatbot ownership
+    const [chatbot] = await db
+      .select()
+      .from(chatbots)
+      .where(and(eq(chatbots.id, parseInt(chatbotId)), eq(chatbots.userId, userId!)));
 
-  if (!chatbot) {
-    sendError(res, "Chatbot not found", 404);
+    if (!chatbot) {
+      return sendError(res, "Chatbot not found", 404);
+    }
+
+    // 2. Ensure session exists (new or existing)
+    let session;
+    if (sessionId) {
+      [session] = await db
+        .select()
+        .from(chatSessions)
+        .where(eq(chatSessions.id, parseInt(sessionId)));
+    }
+
+    if (!session) {
+      [session] = await db
+        .insert(chatSessions)
+        .values({
+          chatbotId: chatbot.id,
+          userId,
+          title: "New Chat",
+        })
+        .returning();
+    }
+
+    // 3. Store user message
+    await db.insert(chatMessages).values({
+      sessionId: session.id,
+      role: "user",
+      content: query,
+    });
+
+    // 4. Generate embedding
+    const queryEmbeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-ada-002",
+      input: query,
+    });
+    const queryEmbedding = queryEmbeddingResponse.data[0].embedding;
+
+    // 5. Query ChromaDB
+    const collection = await chromaClient.getCollection({
+      name: `chatbot_${chatbotId}`,
+    });
+    const results = await collection.query({
+      queryEmbeddings: [queryEmbedding],
+      nResults: 3,
+    });
+
+    const context = results.documents[0]?.join("\n") || "";
+
+    // 6. Retrieve last 5 messages
+    const history = await db
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.sessionId, session.id))
+      .orderBy(desc(chatMessages.createdAt))
+      .limit(5);
+
+    const formattedHistory = history.reverse().map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    formattedHistory.unshift({
+      role: "system",
+      content: "You are a helpful customer support chatbot. Use the provided context if relevant.",
+    });
+    formattedHistory.push({
+      role: "system",
+      content: `Context: ${context}`,
+    });
+
+    // 7. Generate assistant response
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: formattedHistory,
+    });
+
+    const assistantMessage = completion.choices[0].message.content ?? "";
+
+    // 8. Store assistant message
+    await db.insert(chatMessages).values({
+      sessionId: session.id,
+      role: "assistant",
+      content: assistantMessage,
+      metadata: JSON.stringify({ contextUsed: context }),
+    });
+
+    // 9. Respond to client
+    return sendSuccess(
+      res,
+      {
+        sessionId: session.id,
+        response: assistantMessage,
+        context,
+        timestamp: new Date(),
+      },
+      200
+    );
+  } catch (err: any) {
+    console.error("Error in queryChatbot:", err);
+    return sendError(res, err.message || "Internal Server Error", 500);
   }
-
-  // Generate embedding for query
-  const queryEmbeddingResponse = await openai.embeddings.create({
-    model: 'text-embedding-ada-002',
-    input: query,
-  });
-  const queryEmbedding = queryEmbeddingResponse.data[0].embedding;
-
-  // Query ChromaDB
-  const collection = await chromaClient.getCollection({ name: `chatbot_${chatbotId}` });
-  const results = await collection.query({
-    queryEmbeddings: [queryEmbedding],
-    nResults: 3,
-  });
-
-  const context = results.documents[0]?.join('\n') || '';
-
-  // Generate response using OpenAI
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      { role: 'system', content: 'You are a helpful customer support chatbot.' },
-      { role: 'user', content: `Context: ${context}\n\nQuery: ${query}` },
-    ],
-  });
-
-  sendSuccess(res, {
-    response: completion.choices[0].message.content,
-    context,
-    timestamp: new Date()
-  }, 200)
 }
 
 export async function updateDocument(req: any, res: Response) {
